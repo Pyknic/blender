@@ -36,7 +36,7 @@ static Array<EdgeMapEntry> create_edge_map(const Span<MPoly> polys,
                                            const int total_edges)
 {
   Array<EdgeMapEntry> edge_map(total_edges, {0, 0, 0});
-
+  
   for (const int i_poly : polys.index_range()) {
     const MPoly &mpoly = polys[i_poly];
     for (const MLoop &loop : loops.slice(mpoly.loopstart, mpoly.totloop)) {
@@ -132,17 +132,15 @@ class SignedAngleFieldInput final : public bke::MeshFieldInput {
       BKE_mesh_calc_poly_normal(&mpoly_1, &loops[mpoly_1.loopstart], verts.data(), poly_1_normal);
       BKE_mesh_calc_poly_normal(&mpoly_2, &loops[mpoly_2.loopstart], verts.data(), poly_2_normal);
 
-      /* Find the centerpoint of the axis edge */
-      const float3 edge_centerpoint = (float3(verts[edges[i].v1].co) +
-                                       float3(verts[edges[i].v2].co)) *
-                                      0.5f;
+      /* Determine if the corner is concave or convex using a matrix determinant */
+      const float3 edge_direction = float3(verts[edges[i].v2].co) -
+                                    float3(verts[edges[i].v1].co);
 
-      /* Get the centerpoint of poly 2 and subtract the edge centerpoint to get a tangent
-       * normal for poly 2. */
-      float3 poly_center_2;
-      BKE_mesh_calc_poly_center(&mpoly_2, &loops[mpoly_2.loopstart], verts.data(), poly_center_2);
-      const float3 poly_2_tangent = math::normalize(poly_center_2 - edge_centerpoint);
-      const float concavity = math::dot(poly_1_normal, poly_2_tangent);
+      const float concavity = determinant_m3(
+        poly_1_normal.x, poly_1_normal.y, poly_1_normal.z,
+        poly_2_normal.x, poly_2_normal.y, poly_2_normal.z,
+        edge_direction.x, edge_direction.y, edge_direction.z
+      );
 
       /* Get the unsigned angle between the two polys */
       const float angle = angle_normalized_v3v3(poly_1_normal, poly_2_normal);
